@@ -31,5 +31,6 @@ one-mcp*
 .vscode
 .cursor/**/*.md
 .cursor/rules/*-mode.mdc
+.claude/
 *.db
 *.log

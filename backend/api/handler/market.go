@@ -467,6 +467,10 @@ func extractPackageNameWithoutVersion(packageNameWithVersion string) string {
 	}
 }
 
+func isGitSourcePackageName(packageSpec string) bool {
+	return strings.HasPrefix(packageSpec, "git+")
+}
+
 type CustomServiceReq struct {
 	Type    model.ServiceType `json:"type"`
 	Name    string            `json:"name"`
@@ -475,6 +479,7 @@ type CustomServiceReq struct {
 	Args    []string          `json:"args"`
 	Envs    map[string]string `json:"envs"`
 	Headers map[string]string `json:"headers"`
+	Version string            `json:"version"`
 }
 
 type BatchImportTask struct {
@@ -1964,7 +1969,9 @@ func createSingleServiceFromBatch(ctx context.Context, serviceName string, servi
 			parts := strings.Split(cleanPackageName, "==")
 			cleanPackageName = parts[0]
 		}
-		if description, err := validateAndGetPyPIPackageInfo(ctx, cleanPackageName); err == nil {
+		if isGitSourcePackageName(cleanPackageName) {
+			common.SysLog(fmt.Sprintf("Skipping PyPI metadata lookup for git source %s", cleanPackageName))
+		} else if description, err := validateAndGetPyPIPackageInfo(ctx, cleanPackageName); err == nil {
 			packageDescription = description
 			// PyPI version might need separate call or parsing from sourcePackageName
 			packageVersion = "latest"
@@ -1977,8 +1984,11 @@ func createSingleServiceFromBatch(ctx context.Context, serviceName string, servi
 	// Use retrieved package info or leave empty
 	description := packageDescription
 
-	installedVersion := packageVersion
+	installedVersion := strings.TrimSpace(req.Version)
 	if installedVersion == "" {
+		installedVersion = packageVersion
+	}
+	if installedVersion == "" && !isGitSourcePackageName(sourcePackageName) {
 		installedVersion = "0.0.1"
 	}
 
@@ -2128,6 +2138,12 @@ func mapToCustomServiceReq(data map[string]interface{}, req *CustomServiceReq) e
 		}
 	} else if data["envs"] != nil {
 		return errors.New("'envs' field must be a map of strings")
+	}
+
+	if version, ok := data["version"].(string); ok {
+		req.Version = strings.TrimSpace(version)
+	} else if data["version"] != nil {
+		return errors.New("'version' field must be a string")
 	}
 
 	// Also support 'env' field for compatibility with mcp.json format
