@@ -13,6 +13,11 @@ on:
         description: 'Version tag for release'
         required: false
         default: ''
+      push_docker:
+        description: 'Push Docker image (latest)'
+        required: false
+        default: false
+        type: boolean
 
 
 
@@ -191,7 +196,12 @@ jobs:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
     needs: [lint, test-backend]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    if: |
+      (github.event_name == 'push' &&
+        (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))) ||
+      (github.event_name == 'workflow_dispatch' &&
+        github.event.inputs.push_docker == 'true' &&
+        (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')))
     env:
       DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY || 'docker.io' }}
       DOCKER_IMAGE: ${{ vars.DOCKER_IMAGE || 'buru2020/one-mcp' }}
