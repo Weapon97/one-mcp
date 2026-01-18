@@ -23,6 +23,11 @@ on:
         required: false
         default: false
         type: boolean
+      docker_platforms:
+        description: 'Docker platforms for manual runs (e.g. linux/arm64)'
+        required: false
+        default: 'linux/arm64'
+        type: string
       skip_checks:
         description: 'Skip lint/tests (manual runs only)'
         required: false
@@ -239,6 +244,14 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
+    - name: Set Docker platforms
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "DOCKER_PLATFORMS=${{ github.event.inputs.docker_platforms }}" >> "$GITHUB_ENV"
+        else
+          echo "DOCKER_PLATFORMS=linux/amd64,linux/arm64" >> "$GITHUB_ENV"
+        fi
+
     - name: Debug Docker target (masked)
       run: |
         echo "::add-mask::${DOCKER_REGISTRY}"
@@ -247,8 +260,13 @@ jobs:
           echo "Docker registry/image is not set as expected."
           exit 1
         fi
+        if [ -z "${DOCKER_PLATFORMS}" ]; then
+          echo "Docker platforms are not set as expected."
+          exit 1
+        fi
         echo "Using registry: ${DOCKER_REGISTRY}"
         echo "Using image: ${DOCKER_IMAGE}"
+        echo "Platforms: ${DOCKER_PLATFORMS}"
         echo "Tag: ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
 
     - name: Log in to Docker registry
@@ -263,7 +281,7 @@ jobs:
       with:
         context: .
         push: true
-        platforms: linux/amd64,linux/arm64
+        platforms: ${{ env.DOCKER_PLATFORMS }}
         tags: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
